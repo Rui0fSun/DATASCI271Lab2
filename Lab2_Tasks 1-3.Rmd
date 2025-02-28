@@ -104,7 +104,7 @@ summary(df)
 
 #### Federal Funds Rate (Top Panel - Blue Line)
 
-- 1980s: Interest rates were at historically high levels (above 15%) due to the Federal Reserve’s aggressive tightening to combat inflation. This was known as the Volcker Shock.
+- 1980s: Interest rates were at historically high levels (above 15%) due to the Federal Reserve’s aggressive tightening to combat inflation.
 
 - 2000s: The rate remained relatively stable before being cut sharply after the 2008 Financial Crisis, when the Fed reduced rates to near-zero to stimulate the economy.
 
