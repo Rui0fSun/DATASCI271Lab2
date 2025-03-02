@@ -1,5 +1,6 @@
 ---
-title: "Lab 2"
+title: "W271 Lab 2"
+author: "Akin Akinlabi, Eduardo Gonzalez, Karanveer Lamba, Rui Sun, Victor Ndayambaje"
 output: pdf_document
 date: '`r Sys.Date()`'
 ---
@@ -127,3 +128,93 @@ summary(df)
 - 2008-2009 Financial Crisis: A sharp drop in the output gap occurred, reflecting a deep recession.
 
 - 2020 (COVID-19 Recession): The steepest drop in output gap, followed by a strong recovery.
+
+## Task 2: Preprocessing 
+
+All datasets are set to be quarterly using as.yearqtr(date), and are aggregated from the monthly values to quarterly with the aggregate function.
+
+```{r frequency alignment}
+library(zoo)
+df$quarter <- as.yearqtr(df$date)  # Create a quarter column
+df_quarterly <- aggregate(cbind(fed_rate, pce_index, inflation, real_gdp, potential_gdp, output_gap) ~ quarter, data = df, FUN = mean)
+summary(df_quarterly)
+```
+
+From task 1, the three plots show extreme spikes, indicating outliers. Winsorizing is a method to cap extreme outliers. Instead of removing outliers, in this case to retain all data points but to modify extreme values and their influence, any data point above the 99th percentile are capped at the 99th percentile value, and any data point below the 1st percentile are capped at the 1st percentile value.
+
+```{r outlier detection and treatment}
+# Set percentile thresholds for Winsorizing (1st and 99th percentile)
+lower_percentile <- 0.01
+upper_percentile <- 0.99
+
+# Function to Winsorize a variable
+winsorize <- function(x, lower_percentile, upper_percentile) {
+  lower_cutoff <- quantile(x, lower_percentile)
+  upper_cutoff <- quantile(x, upper_percentile)
+  
+  # Cap values at the 1st and 99th percentiles
+  x[x < lower_cutoff] <- lower_cutoff
+  x[x > upper_cutoff] <- upper_cutoff
+  
+  return(x)
+}
+
+# Apply Winsorizing to all variables
+df_quarterly$fed_rate <- winsorize(df_quarterly$fed_rate, lower_percentile, upper_percentile)
+df_quarterly$pce_index <- winsorize(df_quarterly$pce_index, lower_percentile, upper_percentile)
+df_quarterly$inflation <- winsorize(df_quarterly$inflation, lower_percentile, upper_percentile)
+df_quarterly$real_gdp <- winsorize(df_quarterly$real_gdp, lower_percentile, upper_percentile)
+df_quarterly$potential_gdp <- winsorize(df_quarterly$potential_gdp, lower_percentile, upper_percentile)
+df_quarterly$output_gap <- winsorize(df_quarterly$output_gap, lower_percentile, upper_percentile)
+```
+
+The ggplot2 package is used to visualize the real GDP over time, allowing for the identification of any potential seasonal variation. To further assess seasonality, the nsdiffs function from the forecast package is used to test for the need for seasonal differencing. STL decomposition is applied using the stl() function, which separates the time series into its trend, seasonal, and residual components. The seasonal component is extracted to assess potential seasonal effects. Based on the seasonal plot and a seasonality test result of zero (indicating no significant seasonality), combined with the STL decomposition showing a general upward trajectory, repeating seasonal patterns, and a large spike in the residual component (which cannot be explained by the seasonality), it is concluded that there is no significant seasonal effect on the dataset. Therefore, seasonality adjustment is not necessary.
+
+```{r seasonal adjustment}
+# Seasonal plot of real_gdp
+library(ggplot2)
+ggplot(df_quarterly, aes(x = quarter, y = real_gdp)) +
+  geom_line() +
+  facet_wrap(~ factor(month(quarter)), scales = "free_y") +
+  labs(title = "Seasonal Plot of Real GDP", x = "Quarter", y = "Real GDP")
+
+library(forecast)
+
+# Convert the data to a time series object (quarterly data)
+ts_data <- ts(df_quarterly$real_gdp, frequency = 4)
+
+# Test for seasonal differencing
+seasonality_test <- nsdiffs(ts_data)
+
+# Print the result
+print(seasonality_test)
+
+# Apply STL decomposition
+decomp <- stl(ts_data, s.window = "periodic")
+
+# Plot the decomposition to visualize the seasonal component
+plot(decomp)
+```
+
+## Task 3: Stationarity Testing & Potential Structural Breaks
+
+The Augmented Dickey-Fuller tests for unit roots were conducted with three different regression models: none, drift, and trend. The trend model, which included both a constant and a linear trend, had a test statistic of -2.18, also showing no significant evidence of stationarity, with a p-value of 0.05779. The second model (drift) included a constant, and the test statistic of 1.17 showed no significant evidence of stationarity, with a p-value of 0.2194. Finally, the test statistic was 5.44, which is significant at the 1% level, suggesting the series is stationary. This progression from the most general model (trend) to the simplest model (none) supports the conclusion that the series is stationary.
+
+```{r stationarity with structural break}
+library(aTSA)
+library(urca)
+
+ts_quarterly <- ts(df_quarterly$real_gdp, start = c(1980, 1), frequency = 4)
+
+# ADF test with constant and trend, specifying 4 lags
+adf_trend <- ur.df(ts_quarterly, type = "trend", lags = 4)
+summary(adf_trend)
+
+# ADF test with constant (drift), specifying 4 lags
+adf_drift <- ur.df(ts_quarterly, type = "drift", lags = 4)
+summary(adf_drift)
+
+# ADF test with no constant or trend, specifying 4 lags
+adf_none <- ur.df(ts_quarterly, type = "none", lags = 4)  # Specify a valid number of lags
+summary(adf_none)
+```
