@@ -377,14 +377,50 @@ The plot confirms this issue, as the ECM predictions (blue line) are consistentl
 
 ## Task 6
 
-During this task, we aim to:
+This task is about residual Modeling & forecasting and the goal is to evaluate the Taylor Rule and ECM models, determine which is better, and apply ARIMA residual correction if necessary. We compare their forecasting accuracy using RMSE.
 
-- Extract residuals from the OLS-based Taylor Rule model.
-- Fit an ARIMA model to these residuals.
-- Generate forecasts using the combined Taylor Rule + ARIMA approach.
-- Compare forecast accuracy using RMSE.
+### Compare Taylor Rule Model vs. ECM
 
-### Extract Residuals from the Taylor Rule Model
+Before applying ARIMA, we first compare the Taylor Rule model and the ECM to determine which model performs better
+
+#### 1. Compute RMSE for Taylor Rule
+
+```{r}
+# Predict on test set using Taylor Rule model
+test_set$predicted_fed_rate_taylor <- predict(ols_model, newdata = test_set)
+
+# Compute RMSE for Taylor Rule
+rmse_taylor <- sqrt(mean((test_set$fed_rate - test_set$predicted_fed_rate_taylor)^2, na.rm = TRUE))
+print(paste("Taylor Rule RMSE:", round(rmse_taylor, 3)))
+
+
+```
+#### 2. Compute RMSE for ECM
+
+```{r}
+# Predict ECM on test set
+test_set$ECM_Predicted <- predict(ecm_model, newdata = test_set)
+
+# Compute RMSE for ECM
+rmse_ecm <- sqrt(mean((test_set$fed_rate - test_set$ECM_Predicted)^2, na.rm = TRUE))
+print(paste("ECM RMSE:", round(rmse_ecm, 3)))
+
+```
+#### 3. Decision - Which Model is Better?
+
+```{r}
+if (rmse_ecm < rmse_taylor) {
+  print("ECM performs better than Taylor Rule. Proceeding with ECM for ARIMA modeling.")
+  selected_model <- ecm_model
+  test_set$Final_Predicted <- test_set$ECM_Predicted
+} else {
+  print("Taylor Rule performs better. No need for ARIMA on ECM residuals.")
+  selected_model <- ols_model
+  test_set$Final_Predicted <- test_set$predicted_fed_rate_taylor
+}
+
+```
+### Extract Residuals from Taylor Rule Model
 
 ```{r}
 # Extract residuals from the Taylor Rule model
@@ -401,7 +437,8 @@ autoplot(ts_residuals) +
 ```
 The residuals plot shows the difference between the actual and predicted Fed Funds Rate from the Taylor Rule regression. There are periods of high residual volatility, particularly in the 1980s and 2008, indicating times when the model struggled to capture interest rate movements. The downward trend in recent years suggests potential structural changes in monetary policy.
 
-### Identify the Best ARIMA Model
+
+### Identify the Best ARIMA Model for Taylor Rule Residuals
 
 We check for residual autocorrelation and identify the best ARIMA model.
 ```{r}
@@ -419,7 +456,7 @@ pacf(ts_residuals, main="PACF of Residuals")
 ```
 The Autocorrelation Function (ACF) shows significant persistence in residuals, indicating that past errors influence future errors. The Partial Autocorrelation Function (PACF) suggests an ARIMA model with an MA(1) and seasonal AR(2) structure is appropriate. This confirms that the Taylor Rule residuals exhibit serial correlation and require correction.
 
-### Forecast Residuals
+### Forecast Residuals Using ARIMA
 
 We forecast residuals for the next 8 quarters (2023Q1–2024Q4).
 
@@ -444,11 +481,11 @@ ggplot(residual_forecast_df, aes(x = quarter, y = residual_forecast)) +
 
 ```
 
-The selected ARIMA(0,1,1)(2,0,0)[4] model includes a first-order moving average component (MA(1)) and two seasonal autoregressive terms (SAR(2)). The residual forecast plot shows fluctuations but does not exhibit a clear trend. The model's AIC (640.9) and BIC (653.4) suggest a reasonable fit but not a perfect one.
+The selected ARIMA(0,1,1)(2,0,0)[4] model includes a first-order moving average (MA(1)) and two seasonal autoregressive terms (SAR(2)), capturing quarterly seasonality. The forecasted residuals exhibit fluctuations but no clear trend, suggesting that the Taylor Rule model misses some cyclical patterns but does not show strong mean reversion. Peaks and troughs in the residuals indicate that some systematic variation remains unexplained. The AIC (640.9) and BIC (653.4) suggest a reasonable but not perfect fit, meaning there may be potential for improvement by adjusting seasonal terms or investigating structural breaks.
 
 ### Combine ARIMA and Taylor Rule Predictions
 
-We use test_set from Task 4 to evaluate forecast accuracy.
+We now adjust the Taylor Rule predictions by adding forecasted residuals.
 
 ```{r}
 # Forecast Taylor Rule model for test period
@@ -474,11 +511,11 @@ ggplot(test_set, aes(x = quarter)) +
   theme_minimal()
 
 ```
-The Taylor Rule model alone (blue dashed line) closely follows the actual Fed Funds Rate (black line), though it slightly underpredicts in some quarters. The Taylor + ARIMA model (red dotted line) significantly underestimates rates, even producing negative interest rate forecasts, which are unrealistic. This suggests that ARIMA residual correction worsened forecast accuracy by introducing excessive downward adjustments.
+The Taylor Rule model (blue dashed line) follows the actual Fed Funds Rate (black line) relatively well, though it slightly underpredicts the rate in some quarters. However, the Taylor + ARIMA model (red dotted line) significantly underestimates the Fed Funds Rate, even producing negative interest rate forecasts, which are economically implausible. This indicates that ARIMA residual correction introduces excessive downward adjustments, worsening the predictive accuracy rather than improving it. The poor performance of Taylor + ARIMA suggests that the residuals may not follow a purely stochastic process or that important structural changes in monetary policy are not being captured effectively.
 
 ### Evaluate Forecast Accuracy
 
-To determine whether the Taylor Rule + ARIMA approach improves forecasting, we compare Root Mean Squared Error (RMSE):
+To determine whether the Taylor Rule + ARIMA approach improves forecasting, we compare Root Mean Squared Error (RMSE) vs. Taylor Rule + ARIMA:
 
 ```{r}
 # Compute RMSE for Taylor Rule alone
@@ -499,11 +536,11 @@ if (rmse_combined < rmse_taylor) {
 }
 
 ```
-The Taylor Rule model alone has a lower RMSE (1.261) compared to Taylor + ARIMA (5.845), meaning that adding ARIMA residual corrections worsened the forecast. Instead of improving accuracy, ARIMA over-adjusted the predictions, leading to a higher error.
+The Taylor Rule model alone achieves a significantly lower RMSE (1.261) compared to the Taylor + ARIMA model (5.845), indicating that applying ARIMA to the residuals actually worsened forecast accuracy. Instead of reducing errors, the ARIMA correction introduced excessive downward adjustments, likely due to overfitting or an inability to capture the underlying structural dynamics of the Fed Funds Rate. This suggests that the residuals from the Taylor Rule model may not follow a simple stochastic pattern and that monetary policy adjustments may not be effectively modeled using this approach.
 
 **Conclusion**
 
-The Taylor Rule alone remains the better model, as evidenced by its lower RMSE (1.261 vs. 5.845) and closer alignment with actual rates. ARIMA residual correction failed to improve predictions, likely due to model overfitting or structural changes in monetary policy. Future improvements could explore alternative time-series methods such as Vector Autoregression (VAR) or regime-switching models to better capture Federal Reserve decision-making.
+The Taylor Rule model alone remains the better predictor, as it has a lower RMSE (1.261 vs. 5.845) and aligns more closely with actual interest rates. The attempt to refine predictions using ARIMA did not improve accuracy and instead led to excessive deviation from actual values, particularly with unrealistic negative forecasts. This outcome suggests that ARIMA correction is not suitable in this case, and alternative approaches such as Vector Autoregression (VAR) or regime-switching models should be explored to better account for the complexities in Fed policy decisions and economic fluctuations.
 
 
 ## Task 7
