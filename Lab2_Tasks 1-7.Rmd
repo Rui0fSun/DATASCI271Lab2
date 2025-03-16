@@ -27,6 +27,11 @@ library(aTSA)
 library(urca)
 ```
 
+## Introduction
+
+The Taylor Rule serves as a guideline for central banks, particularly the U.S. Federal Reserve, in adjusting interest rates based on inflation and output gaps. This study examines the empirical relevance of the Taylor Rule by analyzing quarterly U.S. macroeconomic data from 1980 to 2023. The dataset includes the Federal Funds Rate, an inflation measure based on Personal Consumption Expenditures (PCE) inflation, and the output gap, which measures the difference between actual and potential GDP. The data was sourced from FRED using the fredr package in R.. The primary objective is to examine the empirical relevance of the Taylor Rule and assess the potential for cointegration and error correction modeling in explaining Federal Reserve policy decisions.
+This paper presents the data retrieval process, initial exploratory data analysis, and preprocessing steps. Key economic events, such as the Volcker disinflation in the 1980s, the 2008 Financial Crisis, and the COVID-19 pandemic, are contextualized within the dataset. Additionally, statistical techniques, including outlier detection, seasonality assessment, and stationarity testing, are applied to ensure the robustness of the analysis.
+
 ## Task 1: Data Retrieval and Initial EDA (Quarterly Frequency)
 ```{r Data Loading}
 
@@ -110,45 +115,18 @@ summary(df)
 
 ```
 
-### Plot Interpretation
-
-#### Federal Funds Rate (Top Panel - Blue Line)
-
-- 1980s: Interest rates were at historically high levels (above 15%) due to the Federal Reserve’s aggressive tightening to combat inflation.
-
-- 2000s: The rate remained relatively stable before being cut sharply after the 2008 Financial Crisis, when the Fed reduced rates to near-zero to stimulate the economy.
-
-- 2020: Another near-zero rate policy followed during the COVID-19 pandemic to counter economic downturns.
-
-- 2022-Present: A rapid rate hike is visible, reflecting the Fed’s response to post-pandemic inflation.
-
-#### Inflation Rate (Middle Panel - Red Line)
-
-- 1980s: Inflation started high but steadily declined after the Volcker-led Fed raised interest rates aggressively.
-
-- 2008 Financial Crisis: There was a brief period of deflation (inflation dropping below zero).
-
-- 2020s: A sharp spike in inflation post-COVID due to supply chain disruptions, stimulus spending, and demand recovery.
-
-#### Output Gap (Bottom Panel - Green Line)
-
-- 1980s-1990s: Large negative output gaps were seen during recessions, indicating economic contractions.
-
-- 2008-2009 Financial Crisis: A sharp drop in the output gap occurred, reflecting a deep recession.
-
-- 2020 (COVID-19 Recession): The steepest drop in output gap, followed by a strong recovery.
+This study examines the empirical relevance of the Taylor Rule by analyzing quarterly U.S. macroeconomic data from 1980 to 2023. The dataset includes the Federal Funds Rate, an inflation measure based on Personal Consumption Expenditures (PCE) inflation, and the output gap, which measures the difference between actual and potential GDP. The data was sourced from FRED using the fredr package in R.
+The Federal Funds Rate has exhibited significant fluctuations over the past four decades. During the 1980s, interest rates exceeded 15%, reflecting the Federal Reserve’s aggressive tightening to combat inflation. In the 2000s, rates remained relatively stable but dropped sharply following the 2008 Financial Crisis, when the Fed cut rates to near-zero to stimulate economic activity. Similarly, in 2020, the Fed once again implemented near-zero interest rates in response to the COVID-19 pandemic. However, starting in 2022, a rapid series of rate hikes occurred as the Fed sought to control post-pandemic inflationary pressures.
+Inflation trends reflect these monetary policy adjustments. The 1980s saw persistently high inflation, which gradually declined due to restrictive monetary policy. A brief period of deflation occurred during the 2008 Financial Crisis, with inflation falling below zero. However, in the 2020s, inflation spiked dramatically due to post-pandemic supply chain disruptions, stimulus measures, and demand surges.
+The output gap provides further insights into economic cycles. Large negative output gaps, indicating recessions, were observed in the 1980s, early 1990s, and during the 2008 Financial Crisis. The COVID-19 pandemic caused the steepest drop in the output gap, reflecting an abrupt economic contraction, but a strong recovery followed as the economy reopened.
 
 ## Task 2: Preprocessing 
-
-All datasets are set to be quarterly using as.yearqtr(date), and are aggregated from the monthly values to quarterly with the aggregate function.
 
 ```{r frequency alignment}
 df$quarter <- as.yearqtr(df$date)  # Create a quarter column
 df_quarterly <- aggregate(cbind(fed_rate, pce_index, inflation, real_gdp, potential_gdp, output_gap) ~ quarter, data = df, FUN = mean)
 summary(df_quarterly)
 ```
-
-From task 1, the three plots show extreme spikes, indicating outliers. Winsorizing is a method to cap extreme outliers. Instead of removing outliers, in this case to retain all data points but to modify extreme values and their influence, any data point above the 99th percentile are capped at the 99th percentile value, and any data point below the 1st percentile are capped at the 1st percentile value.
 
 ```{r outlier detection and treatment}
 # Set percentile thresholds for Winsorizing (1st and 99th percentile)
@@ -176,7 +154,9 @@ df_quarterly$potential_gdp <- winsorize(df_quarterly$potential_gdp, lower_percen
 df_quarterly$output_gap <- winsorize(df_quarterly$output_gap, lower_percentile, upper_percentile)
 ```
 
-The ggplot2 package is used to visualize the real GDP over time, allowing for the identification of any potential seasonal variation. To further assess seasonality, the nsdiffs function from the forecast package is used to test for the need for seasonal differencing. STL decomposition is applied using the stl() function, which separates the time series into its trend, seasonal, and residual components. The seasonal component is extracted to assess potential seasonal effects. Based on the seasonal plot and a seasonality test result of zero (indicating no significant seasonality), combined with the STL decomposition showing a general upward trajectory, repeating seasonal patterns, and a large spike in the residual component (which cannot be explained by the seasonality), it is concluded that there is no significant seasonal effect on the dataset. Therefore, seasonality adjustment is not necessary.
+Since some of the original datasets were reported at a monthly frequency, they were converted to quarterly frequency using the as.yearqtr() function in R. Monthly observations were aggregated using the aggregate() function to ensure consistency across all variables.
+The exploratory analysis revealed extreme fluctuations in interest rates, inflation, and the output gap, suggesting potential outliers. Instead of removing these data points, Winsorizing was applied to cap extreme values at the 99th and 1st percentiles. This approach retains all observations while minimizing the impact of extreme values that could distort statistical analysis.
+To determine whether seasonal adjustment was necessary, the nsdiffs() function from the forecast package was used to test for seasonal differencing. Additionally, STL decomposition (stl()) was applied to break down the time series into trend, seasonal, and residual components. The seasonal component showed no strong repetitive patterns, and the test result indicated that seasonal differencing was not required. Consequently, no seasonal adjustment was applied to the dataset.
 
 ```{r seasonal adjustment}
 # Seasonal plot of real_gdp
