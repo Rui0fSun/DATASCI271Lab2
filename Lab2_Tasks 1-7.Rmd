@@ -201,17 +201,15 @@ adf_none <- ur.df(ts_quarterly, type = "none", lags = 4)  # Specify a valid numb
 summary(adf_none)
 ```
 ## Task 4
+In this section, the team estimates the Taylor Rule using OLS on data from 1980Q1 to 2022Q4, reserving 2023Q1 onward for testing. Alpha 1 is used to determine if it satisfies the “Taylor principle”, comparing the estimate with theory, assuming the target inflation to be 2% from the https://www.federalreserve.gov/economy-at-a-glance-inflation-pce.html. Model diagnostics include checking for autocorrelation in residuals (ACF, PACF, and residuals plots) and evaluating in-sample RMSE, as demonstrated below. The team then generates forecasts for 2023Q1–2024Q4 and compares out-of-sample RMSE with in-sample performance to assess predictive accuracy and potential overfitting. This provides insights into how well the estimated rule aligns with economic theory and its forecasting reliability.
 
 ```{r Estimating the Basic Taylor Rule (OLS)}
-
-# Assuming df_quarterly is your dataframe and it has a column named 'inflation'
 df_quarterly <- df_quarterly %>%
   mutate(inflation_gap = inflation - 2)
 
 # Add a second predictor: lagged value of the time series
 df_quarterly <- df_quarterly %>%
   mutate(lagged_inflation = lag(inflation, order_by = quarter))
-
 train_set <- df_quarterly %>% filter(quarter < '2022 Q4')
 test_set <- df_quarterly %>% filter(quarter >= '2022 Q4')
 
@@ -224,9 +222,8 @@ ols_model <- glm(fed_rate ~ lagged_inflation + inflation_gap + output_gap , data
 
 # Fit the ols without lag model
 ols_model <- glm(fed_rate ~ inflation_gap + output_gap , data = train_set)
-
 # Predict on the test set
-predictions <- predict(ols_model, newdata = test_set)
+#predictions <- predict(ols_model, newdata = test_set)
 
 # Calculate the residuals
 residuals <- residuals(ols_model)
@@ -249,23 +246,27 @@ print(paste("In Sample: Root Mean Squared Error (RMSE):", rmse))
 rmse <- sqrt(mean((test_set$fed_rate - test_set$Predicted)^2))
 print(paste("Out of Sample: Root Mean Squared Error (RMSE):", rmse))
 
+library(ggplot2)
+library(patchwork)
 
-
-# Plot the time series and the fitted linear model for the training set
-ggplot(train_set, aes(x = quarter)) +
+# Training set plot
+p1 <- ggplot(train_set, aes(x = quarter)) +
   geom_line(aes(y = fed_rate), color = "black") +
   geom_line(aes(y = Predicted), color = "blue") +
   labs(title = "Linear Model Fit to Time Series Data (Training Set)",
        x = "Time",
        y = "Fed Rate")
 
-# Plot the time series and the fitted linear model for the training set
-ggplot(test_set, aes(x = quarter)) +
+# Testing set plot
+p2 <- ggplot(test_set, aes(x = quarter)) +
   geom_line(aes(y = fed_rate), color = "black") +
   geom_line(aes(y = Predicted), color = "blue") +
-  labs(title = "Linear Model Fit to Time Series Data (Training Set)",
+  labs(title = "Linear Model Fit to Time Series Data (Testing Set)",
        x = "Time",
        y = "Fed Rate")
+
+# Arrange the plots vertically
+p1 / p2
 
 # Calculate the residuals
 residuals <- residuals(ols_model)
@@ -275,17 +276,24 @@ par(mfrow=c(2,2))
 # Plot the residuals using an ACF plot
 acf(residuals, main = "ACF of Residuals")
 pacf(residuals, main = "PACF of Residuals")
-# Plot the histogram of residuals with a normal distribution curve
-hist(residuals, breaks = 10, probability = TRUE, main = "Histogram of Residuals with Normal Curve", xlab = "Residuals")
-curve(dnorm(x, mean = mean(residuals), sd = sd(residuals)), col = "blue", lwd = 2, add = TRUE, yaxt = "n")
-```
-According to the https://www.federalreserve.gov/economy-at-a-glance-inflation-pce.htm target inflation is 2%
 
-1. At a parameter alpha0 = 1.89988 and p_value < .05, interest moves more than one for one with inflation. 
-Although it does not agree with Taylor's rule, it is worth noting that this model is an oversimplifcation of complex/unpredictable economic variables such as COVID-19
-2. In sample RMSE yields 3.27043042498184. 3 percent in interest rates is a not a good sign for the model.
-The plot shows that COVID-19 years had a huge impact in the residuals. It may be worth treating COVID-19 data to better the model. Also worth noting is the ACF plot indicates some degree in autocorrelation of the residuals.
-3. It is worth mentioning that this is a good prediction of the model as the RSME = 1.37524946670628 is lower in the test set. Evaluating the plot shows the residuals are lessened in comparison to the test data
+
+# Plot the histogram of residuals with a normal distribution curve
+hist(residuals, breaks = 10, probability = TRUE, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     xlim = range(residuals) + c(-1, 1),  # Extend x-axis for visibility
+     ylim = c(0, max(density(residuals)$y) * 1.2))  # Extend y-axis for curve
+
+# Add normal distribution curve
+x_vals <- seq(min(residuals), max(residuals), length.out = 100)  # Ensure full range
+curve(dnorm(x, mean = mean(residuals), sd = sd(residuals)), 
+      col = "blue", lwd = 2, add = TRUE, yaxt = "n")
+```
+
+- With inflation gap being 4.30803 (p-value = 6.44e-14) in the model, meaning that for every 1 percentage point increase in the inflation gap, the federal funds rate increases by about 4.31 percentage points, which aligns with the Taylor principle. For output gap: 0.02714 (p-value = 0.83), which is not statistically significant, suggesting that the output gap does not have a meaningful effect on the federal funds rate.
+
+ - Diagnostics indicate an in-sample RMSE of 3.27, suggesting moderate fit, while the out-of-sample RMSE is lower at 1.38, indicating reasonable predictive performance. However, residual analysis shows some autocorrelation, and the COVID-19 period significantly affected residuals, highlighting a potential need for adjustments (e.g., treating pandemic-era data separately). 
 
 ## Task 5
 
