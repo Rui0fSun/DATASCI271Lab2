@@ -334,6 +334,8 @@ curve(dnorm(x, mean = mean(residuals), sd = sd(residuals)),
 
 ## Task 5
 
+In this section, the team investigates if there is a long run equilibrium among inflation and output gap. First conducting an Engle-Granger Cointegration Test then estimating the residuals. Then estimating the Error Correction Model by OLS, and then evaluating it by forecasting subset of the data. The Error Correction Model is to estimate the speed at which the dependent variable returns to equilibrium where Cointegration is present.
+
 ```{r Cointegration and Error Correction Model (ECM)}
 # Engle-Granger Cointegration Test
 long_run_model <- lm(fed_rate ~ inflation_gap + output_gap, data = train_set)
@@ -388,16 +390,20 @@ print(paste("ECM In-Sample RMSE:", rmse_ecm_train))
 print(paste("ECM Out-of-Sample RMSE:", rmse_ecm_test))
 
 # Plot actual vs. predicted (ECM)
+
 ggplot(test_set, aes(x = quarter)) +
-  geom_line(aes(y = fed_rate), color = "black") +
-  geom_line(aes(y = ECM_Predicted), color = "blue") +
+  geom_line(aes(y = fed_rate, color = "Actual Fed Rate"), size = 1.2) +
+  geom_line(aes(y = ECM_Predicted, color = "ECM Predicted Rate"), size = 1.2) +
   labs(title = "ECM Model Predictions vs. Actual Fed Funds Rate",
-       x = "Quarter",
-       y = "Fed Funds Rate (%)")
+      x = "Quarter",       y = "Fed Funds Rate (%)") +
+  scale_color_manual(name = "Legend",
+                     values = c("Actual Fed Rate" = "black",
+                                "ECM Predicted Rate" = "blue")) +
+  theme_minimal()
 ```
-The results shows that the basic Taylor Rule has some explanatory power but lacks a strong fit. The inflation gap is highly significant, with a coefficient of 4.38, meaning that for every 1% increase in the inflation gap, the Fed Funds Rate is expected to rise by about 4.38 percentage points. However, the output gap is statistically insignificant, p = 0.867, suggesting it has little influence on interest rate decisions in this model. The R² of 0.27 indicates that the model explains only 27% of the variation in interest rates, implying that other factors influence Fed policy.
-The Augmented Dickey-Fuller test on the residuals suggests a weak rejection of the unit root hypothesis, test statistic = -2.14, above the 5% critical value of -1.95. This indicates some level of co-integration between the Fed Funds Rate, inflation gap, and output gap, but it is not particularly strong.
-The Error Correction Model results show that short-term changes in the output gap significantly impact interest rate changes, p < 0.001, whereas short-term changes in the inflation gap do not, p = 0.83. The lagged residuals coefficient, -0.05199, p < 0.001, confirms that there is an adjustment process towards the long-run equilibrium, but the speed of correction is slow. The ECM in-sample RMSE (0.55) suggests a good fit within the training data, but the out-of-sample RMSE (5.11) is much higher, indicating poor forecasting performance.
+The results shows that the basic Taylor Rule has some explanatory power but lacks a strong fit. The inflation gap is highly significant, with a coefficient of 4.31, meaning that for every 1% increase in the inflation gap, the Fed Funds Rate is expected to rise by about 4.31 percentage points. However, the output gap is statistically insignificant, p = 0.867, suggesting it has little influence on interest rate decisions in this model. The R² of 0.28 indicates that the model explains only 28% of the variation in interest rates, implying that other factors influence Fed policy.
+The Augmented Dickey-Fuller test on the residuals suggests a weak rejection of the null hypothesis, the time series has a unit root, at a test statistic = -2.14, above the 5% critical value of -1.95. This indicates some level of co-integration between the Fed Funds Rate, inflation gap, and output gap.
+The Error Correction Model results show that short-term changes in the output gap significantly impact interest rate changes, p < 0.001, whereas short-term changes in the inflation gap do not, p = 0.83. The lagged residuals coefficient, -0.05199, p < 0.001, confirms that there is an adjustment process towards the long-run equilibrium, but the speed of correction is slow. The ECM in-sample RMSE (0.70) suggests a good fit within the training data, but the out-of-sample RMSE (5.07) is much higher, indicating poor forecasting performance.
 The plot confirms this issue, as the ECM predictions (blue line) are consistently lower than the actual Fed Funds Rate (black line), meaning the model significantly under predicts interest rates. This could be due to the poor explanatory power of the output gap, weak co-integration, or changes in Fed policy not captured by the Taylor Rule framework.
 
 ## Task 6
